@@ -1,0 +1,18 @@
+/* Курсор-рука на задаче */
+.todo-item { cursor: pointer; }
+
+/* Выполненная задача: зачёркнутый текст */
+.task-done .todo-label {
+  text-decoration: line-through;
+  opacity: 0.45;
+}
+
+/* Важная задача: оранжевый жирный текст */
+.task-important .todo-label {
+  color: #e65100 !important;
+  font-weight: 600;
+}
+
+/* Кнопка «удалить»: скрыта, видна при наведении */
+.delete-btn { opacity: 0; transition: opacity 0.15s; }
+.todo-item:hover .delete-btn { opacity: 1; }

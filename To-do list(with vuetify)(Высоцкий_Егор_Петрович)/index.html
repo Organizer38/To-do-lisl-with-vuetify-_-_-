@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Список дел</title>
+  <link href="https://cdn.jsdelivr.net/npm/vuetify@3/dist/vuetify.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@mdi/font@7/css/materialdesignicons.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="main.css">
+</head>
+
+<body>
+  <div id="app">
+    <v-app>
+      <v-main>
+        <v-container class="py-8 d-flex justify-center">
+          <v-card width="620" elevation="3" rounded="lg">
+
+            <!-- Шапка -->
+            <v-card-title class="d-flex align-center justify-space-between pa-5 pb-4">
+              <span class="text-h6 font-weight-bold">📝 Список дел</span>
+              <v-btn
+                v-if="editing"
+                @click="doEdit(false)"
+                color="error"
+                variant="tonal"
+                size="small"
+              >
+                Отмена
+              </v-btn>
+              <v-btn
+                v-else
+                @click="doEdit(true)"
+                color="primary"
+                variant="flat"
+                size="small"
+                prepend-icon="mdi-plus"
+              >
+                Новая задача
+              </v-btn>
+            </v-card-title>
+
+            <v-divider></v-divider>
+
+            <!-- Форма добавления задачи -->
+            <v-expand-transition>
+              <div v-if="editing">
+                <v-card-text class="pa-5 pb-4">
+                  <v-text-field
+                    v-model="newItem"
+                    @keyup.enter="saveItem"
+                    label="Введите задачу..."
+                    variant="outlined"
+                    density="compact"
+                    autofocus
+                    hide-details
+                    class="mb-4"
+                  ></v-text-field>
+
+                  <div class="d-flex align-center flex-wrap gap-3">
+                    <v-select
+                      v-model="newItemCategory"
+                      :items="categoryOptions"
+                      item-title="label"
+                      item-value="value"
+                      label="Категория"
+                      variant="outlined"
+                      density="compact"
+                      hide-details
+                      style="max-width: 190px"
+                    ></v-select>
+
+                    <v-checkbox
+                      v-model="newItemImportant"
+                      label="Важная"
+                      hide-details
+                      density="compact"
+                      color="deep-orange-lighten-1"
+                    ></v-checkbox>
+
+                    <v-spacer></v-spacer>
+
+                    <v-btn
+                      @click="saveItem"
+                      :disabled="!newItem.trim()"
+                      color="primary"
+                      variant="flat"
+                    >
+                      Сохранить
+                    </v-btn>
+                  </div>
+                </v-card-text>
+                <v-divider></v-divider>
+              </div>
+            </v-expand-transition>
+
+            <!-- Фильтры -->
+            <v-card-text v-if="items.length > 0" class="px-5 py-3">
+              <div class="d-flex align-center">
+                <v-chip-group v-model="activeFilter" mandatory color="primary">
+                  <v-chip
+                    v-for="f in filters"
+                    :key="f.value"
+                    :value="f.value"
+                    variant="tonal"
+                    size="small"
+                  >
+                    {{ f.label }}
+                  </v-chip>
+                </v-chip-group>
+                <v-spacer></v-spacer>
+                <span class="text-caption text-medium-emphasis text-no-wrap">
+                  {{ doneCount }}&nbsp;/&nbsp;{{ items.length }} выполнено
+                </span>
+              </div>
+            </v-card-text>
+
+            <v-divider v-if="items.length > 0"></v-divider>
+
+            <!-- Пустые состояния -->
+            <v-card-text
+              v-if="items.length === 0"
+              class="text-center py-10 text-medium-emphasis"
+            >
+              🎉 Нет задач! Нажмите «Новая задача», чтобы начать.
+            </v-card-text>
+            <v-card-text
+              v-else-if="filteredItems.length === 0"
+              class="text-center py-8 text-medium-emphasis"
+            >
+              Нет задач в этой категории.
+            </v-card-text>
+
+            <!-- Список задач -->
+            <v-list class="py-1 px-2">
+              <v-list-item
+                v-for="item in filteredItems"
+                :key="item.id"
+                @click="toggleDone(item)"
+                :class="{
+                  'task-done':      item.done,
+                  'task-important': item.important && !item.done
+                }"
+                class="todo-item"
+                rounded="lg"
+              >
+                <!-- Иконка-чекбокс слева -->
+                <template v-slot:prepend>
+                  <v-icon :color="item.done ? 'success' : 'blue-grey-lighten-3'">
+                    {{ item.done ? 'mdi-checkbox-marked-circle' : 'mdi-checkbox-blank-circle-outline' }}
+                  </v-icon>
+                </template>
+
+                <!-- Текст задачи -->
+                <v-list-item-title class="todo-label">{{ item.label }}</v-list-item-title>
+
+                <!-- Тег категории + кнопка удаления справа -->
+                <template v-slot:append>
+                  <v-chip
+                    v-if="item.category"
+                    size="x-small"
+                    variant="tonal"
+                    class="mr-2"
+                  >
+                    {{ categoryLabel(item.category) }}
+                  </v-chip>
+                  <v-btn
+                    @click.stop="deleteItem(item)"
+                    icon="mdi-close"
+                    variant="text"
+                    size="x-small"
+                    color="error"
+                    class="delete-btn"
+                  ></v-btn>
+                </template>
+              </v-list-item>
+            </v-list>
+
+            <!-- Очистка выполненных -->
+            <v-card-actions v-if="doneCount > 0" class="justify-end pa-4 pt-2">
+              <v-btn
+                @click="clearDone"
+                variant="tonal"
+                color="error"
+                size="small"
+                prepend-icon="mdi-trash-can-outline"
+              >
+                Очистить выполненные ({{ doneCount }})
+              </v-btn>
+            </v-card-actions>
+
+          </v-card>
+        </v-container>
+      </v-main>
+    </v-app>
+  </div>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vuetify@3/dist/vuetify.min.js"></script>
+
+  <script>
+    const { createApp } = Vue
+    const { createVuetify } = Vuetify
+
+    const vuetify = createVuetify({
+      theme: {
+        defaultTheme: 'light',
+        themes: {
+          light: {
+            colors: {
+              primary:    '#4299e1',   
+              background: '#f0f4f8',  
+            }
+          }
+        }
+      }
+    })
+
+    const app = createApp({
+      data() {
+        return {
+          editing: false,
+          newItem: '',
+          newItemImportant: false,
+          newItemCategory: '',
+          activeFilter: 'all',
+
+          filters: [
+            { value: 'all',       label: 'Все' },
+            { value: 'active',    label: 'Активные' },
+            { value: 'done',      label: 'Выполненные' },
+            { value: 'important', label: '⚡ Важные' },
+          ],
+
+          categoryOptions: [
+            { value: '',         label: 'Без категории' },
+            { value: 'work',     label: '💼 Работа' },
+            { value: 'personal', label: '🏠 Личное' },
+            { value: 'shopping', label: '🛒 Покупки' },
+          ],
+
+          items: [
+            { id: 1, label: 'Изучить основы Vue 3',        done: true,  important: false, category: 'work' },
+            { id: 2, label: 'Сделать проект «Список дел»', done: true,  important: true,  category: 'work' },
+            { id: 3, label: 'Выложить проект на GitHub',   done: false, important: true,  category: 'work' },
+            { id: 4, label: 'Купить продукты',             done: false, important: false, category: 'shopping' },
+            { id: 5, label: 'Позвонить маме',              done: false, important: true,  category: 'personal' },
+          ]
+        }
+      },
+
+      computed: {
+        filteredItems() {
+          const all = [...this.items].reverse()
+          if (this.activeFilter === 'active')    return all.filter(i => !i.done)
+          if (this.activeFilter === 'done')      return all.filter(i => i.done)
+          if (this.activeFilter === 'important') return all.filter(i => i.important && !i.done)
+          return all
+        },
+        doneCount() {
+          return this.items.filter(i => i.done).length
+        }
+      },
+
+      methods: {
+        saveItem() {
+          if (!this.newItem.trim()) return
+          this.items.push({
+            id: Date.now(),
+            label: this.newItem.trim(),
+            done: false,
+            important: this.newItemImportant,
+            category: this.newItemCategory
+          })
+          this.newItem = ''
+          this.newItemImportant = false
+          this.newItemCategory = ''
+        },
+        doEdit(val) {
+          this.editing = val
+          this.newItem = ''
+          this.newItemImportant = false
+          this.newItemCategory = ''
+        },
+        toggleDone(item)  { item.done = !item.done },
+        deleteItem(item)  { this.items = this.items.filter(i => i.id !== item.id) },
+        clearDone()       { this.items = this.items.filter(i => !i.done) },
+        categoryLabel(cat) {
+          const map = { work: '💼', personal: '🏠', shopping: '🛒' }
+          return map[cat] || ''
+        }
+      }
+    })
+
+    app.use(vuetify) 
+    app.mount('#app')
+  </script>
+</body>
+
+</html>
