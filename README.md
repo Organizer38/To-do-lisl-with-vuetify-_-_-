@@ -21,6 +21,6 @@
 
 ```
 To-do list/
-├── index.html   # Разметка + компоненты Vuetify
+├── index.html   # Разметка
 └── main.css     # Стили
 ```
